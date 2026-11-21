@@ -1,0 +1,79 @@
+name: Build App (APK + IPA)
+
+on:
+  workflow_dispatch:   # 手动触发（Actions 页面点 Run workflow）——macOS 计费 10 倍，按需使用省额度
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter 3.24.5
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.24.5
+          channel: stable
+          cache: true
+
+      - name: Read version
+        id: ver
+        run: echo "version=$(grep '^version:' pubspec.yaml | cut -d' ' -f2 | cut -d'+' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Build iOS (unsigned)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry netprobe-ios-unsigned.ipa Payload
+          rm -rf Payload
+          ls -la netprobe-ios-unsigned.ipa
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: netprobe-android
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload IPA (unsigned)
+        uses: actions/upload-artifact@v4
+        with:
+          name: netprobe-ios-unsigned
+          path: netprobe-ios-unsigned.ipa
+
+      - name: Publish to releases branch (direct links)
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci@netprobe.local"
+          git fetch origin releases || true
+          git checkout releases 2>/dev/null || git checkout --orphan releases
+          git rm -rf . 2>/dev/null || true
+          mv build/app/outputs/flutter-apk/app-release.apk netprobe-android-v${{ steps.ver.outputs.version }}.apk
+          mv netprobe-ios-unsigned.ipa netprobe-ios-v${{ steps.ver.outputs.version }}.ipa
+          DATE=$(date '+%Y-%m-%d %H:%M')
+          printf '# 网络工具箱 安装包\n\n- 更新时间: %s\n- netprobe-android.apk —— 安卓直接安装\n- netprobe-ios-unsigned.ipa —— iPhone 用爱思助手/AltStore 自签安装\n\n## iOS 说明\n\niOS 端受系统限制，无法扫描附近 WiFi（Apple TN3111），信号强度改用网关 ICMP 时延代理。\n' "$DATE" > README.md
+          git add -f netprobe-android-v*.apk netprobe-ios-v*.ipa README.md
+          git commit -m "packages $DATE" || true
+          git push origin releases --force
