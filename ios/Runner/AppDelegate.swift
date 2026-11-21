@@ -417,7 +417,12 @@ final class NetProbeWifi: NSObject, CLLocationManagerDelegate {
   }
 
   private func locationAuthorized() -> Bool {
-    let status = locationManager.authorizationStatus
+    let status: CLAuthorizationStatus
+    if #available(iOS 14.0, *) {
+      status = locationManager.authorizationStatus
+    } else {
+      status = CLLocationManager.authorizationStatus()
+    }
     return status == .authorizedWhenInUse || status == .authorizedAlways
   }
 
@@ -432,6 +437,7 @@ final class NetProbeWifi: NSObject, CLLocationManagerDelegate {
     }
   }
 
+  @available(iOS 14.0, *)
   func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
     let status = manager.authorizationStatus
     guard status != .notDetermined, let pending = pendingPerm else { return }
@@ -728,7 +734,7 @@ final class NetProbeTools: NSObject {
     }
 
     var received = 0
-    let pid = UInt16(truncatingIfNeeded: Int32(bitPattern: getpid()))
+    let pid = UInt16(truncatingIfNeeded: getpid())
 
     for seq in 1...count {
       if !pingRunning { break }
@@ -744,7 +750,7 @@ final class NetProbeTools: NSObject {
         let rtt = Date().timeIntervalSince(start) * 1000
         if resp.type == 0 {
           received += 1
-          let ttlText = resp.ttl.map(String.init) ?? "-"
+          let ttlText: String = resp.ttl != nil ? "\(resp.ttl!)" : "-"
           emitPing([
             "type": "reply",
             "rtt": rtt,
@@ -807,7 +813,7 @@ final class NetProbeTools: NSObject {
     }
     defer { close(fd) }
 
-    let pid = UInt16(truncatingIfNeeded: Int32(bitPattern: getpid()))
+    let pid = UInt16(truncatingIfNeeded: getpid())
 
     for ttl in 1...maxHops {
       if !traceRunning { break }
