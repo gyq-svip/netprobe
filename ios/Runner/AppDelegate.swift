@@ -77,10 +77,10 @@ enum NetProbeChannels {
 // MARK: - 通用事件流处理器
 
 final class SimpleStreamHandler: NSObject, FlutterStreamHandler {
-  private let onListenBlock: (FlutterEventSink) -> Void
+  private let onListenBlock: (@escaping FlutterEventSink) -> Void
   private let onCancelBlock: () -> Void
 
-  init(onListen: @escaping (FlutterEventSink) -> Void, onCancel: @escaping () -> Void) {
+  init(onListen: @escaping (@escaping FlutterEventSink) -> Void, onCancel: @escaping () -> Void) {
     self.onListenBlock = onListen
     self.onCancelBlock = onCancel
   }
