@@ -41,3 +41,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# 项目内部笔记与工作区数据，不纳入版本控制
+.workbuddy/
